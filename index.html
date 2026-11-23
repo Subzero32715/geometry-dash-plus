@@ -658,50 +658,10 @@ function killBadge() {
 setInterval(killBadge, 400);
 setTimeout(killBadge, 1200);
 
-/* ================= UNCLOSABLE THEATRE =================
-   Browsers will NEVER let a page fully block closing —
-   that power doesn't exist for web pages (only native apps).
-   What we CAN do:
-     1. a beforeunload dialog on every close/reload attempt
-     2. try to reopen ourselves when the page hides
-     3. fight back on Escape (closes dialogs)
-   The only true exit is the browser's own "Leave" button,
-   or the secret hatch: hold ESC for 3 seconds. */
-let escHoldStart = 0;
-let secretExitArmed = false;
-window.addEventListener('beforeunload', e => {
-  if (G.state === 'menu') return;
-  e.preventDefault();
-  e.returnValue = 'DO NOT LEAVE. IT IS NOT DONE WITH YOU.';
-  return e.returnValue;
-});
-window.addEventListener('pagehide', () => {
-  try { window.open(location.href, '_blank'); } catch (e) {}
-});
-window.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { escHoldStart = performance.now(); secretExitArmed = true; }
-});
-window.addEventListener('keyup', e => {
-  if (e.key === 'Escape' && secretExitArmed) {
-    if (performance.now() - escHoldStart >= 2900) {
-      /* secret hatch for the prankster */
-      G.state = 'menu';
-      try { song.pause(); chaseSong.pause(); } catch (err) {}
-      clearInterval(progTimer); stopTerminal();
-      blackout.classList.remove('show');
-      finale.classList.add('hidden');
-      locationScreen.classList.add('hidden');
-      chase.classList.add('hidden');
-      finalScreen.classList.add('hidden');
-      document.title = 'Geometry Dash';
-      startScreen.classList.remove('hidden');
-      requestAnimationFrame(() => startScreen.classList.remove('fade'));
-      alert('PRANK EXITED. Tell no one.');
-    }
-    secretExitArmed = false;
-  }
-});
-
+/* ================= SAFE EXIT BEHAVIOR =================
+   The game does not trap the browser, reopen tabs, or block closing.
+   The in-game alert has only its OK button; the browser's own controls
+   remain available so the player can always leave the page. */
 /* ----------------------------- MENU CHROME ----------------------------- */
 const MENU_LINES = [
   'VERIFYING GAME FILES',
@@ -1264,6 +1224,10 @@ function showVirus() {
   G.popupShown = true;
   virusModal.classList.remove('hidden');
 }
+
+virusModal.addEventListener('click', event => {
+  if (event.target === virusModal) event.stopPropagation();
+});
 
 okBtn.addEventListener('click', () => {
   initAudio();
@@ -2024,14 +1988,21 @@ function startChase() {
   chaseZoom = z;
   buildChaseMap(chaseLat, chaseLon, chaseZoom);
 
-  /* play the song and start the clock with it */
+  /* The chase begins at 5,000 feet: start Evil Hunter here. */
   chaseT0 = performance.now();
   try {
+    song.pause();
+    chaseSong.pause();
     chaseSong.currentTime = 0;
     chaseSong.volume = 1;
-    const p = chaseSong.play();
-    if (p && p.then) p.then(() => { chaseT0 = performance.now(); }).catch(() => {});
-  } catch (e) {}
+    const playRequest = chaseSong.play();
+    if (playRequest && playRequest.then) {
+      playRequest.then(() => { chaseT0 = performance.now(); })
+        .catch(err => console.warn('Chase music could not autoplay:', err));
+    }
+  } catch (e) {
+    console.warn('Chase music could not start:', e);
+  }
 
   chaseSong.addEventListener('ended', endChase, { once: true });
 
@@ -2210,19 +2181,10 @@ function showFinal() {
     $('finalId').textContent = ip;
   }
 
-  /* tabs closing theatre */
+  /* Harmless finale: no downloads, tab spam, or attempts to close the browser. */
   const tabsEl = $('finalTabs');
-  tabsEl.textContent = 'CLOSING TABS...';
+  tabsEl.textContent = 'PRANK COMPLETE — YOU CAN CLOSE THIS TAB';
 
-  setTimeout(() => {
-    /* drop the payload file */
-    downloadHax(3);
-    /* then open the floodgates */
-    popupStorm(name, ip, lat, lon);
-    tabsEl.textContent = 'TABS CLOSED';
-    /* and never let them leave quietly */
-    tryCloseForever();
-  }, 1100);
 }
 
 /* ----------------------------- BOOT ----------------------------- */
